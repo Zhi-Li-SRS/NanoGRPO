@@ -19,11 +19,11 @@ NanoGRPO implements GRPO, a reinforcement learning algorithm designed to improve
 NanoGRPO/
 ├── grpo.py           # Core GRPO algorithm implementation
 ├── optimizer.py      # Memory-efficient AdamW optimizer
-├── qwen2_llm.py     # Qwen2 transformer model implementation
-├── tokenizer.py     # Tokenizer with chat template support
-├── math_task.py     # Simple math task and reward functions
-├── data_types.py    # Data structures for episodes and batches
-└── train.py         # Training script 
+├── qwen2_llm.py      # Qwen2 transformer model implementation
+├── tokenizer.py      # Tokenizer with chat template support
+├── math_task.py      # Simple math task and reward functions
+├── data_types.py     # Data structures for episodes and batches
+└── train.py          # Training script 
 ```
 
 ## Key Components
