@@ -39,7 +39,7 @@ def rollout(
         List[Episode]: the list of episodes including the generated texts and related information
     """
     end_token = tokenizer.eos_token
-    end_token_id = tokenizer.ens_token_id
+    end_token_id = tokenizer.eos_token_id
     pad_token_id = tokenizer.pad_token_id
     
     # Get the prefix token ids and the size of batch
@@ -53,7 +53,7 @@ def rollout(
     # Initialize the kv cache
     model.init_kv_cache(bsz, total_len, device, dtype)
     
-    tokens = torch.full((bsz, total_len), pad_token_id, dtype=torch.long, device=device)
+    tokens = torch.full((bsz, total_len), pad_token_id, dtype=torch.long, device=device) # (bsz, total_len) with padding token ids in the beginning
     
     # Fill the prefix token ids into the tokens tensor
     for k, t in enumerate(prefix_token_ids):
@@ -66,6 +66,7 @@ def rollout(
     assert min_prompt_len < total_len
     is_finished = torch.zeros((bsz,), dtype=torch.bool, device=device)
 
+    # Start to generate the tokens
     for cur_pos in range(min_prompt_len, total_len):
         
         print(
@@ -82,6 +83,7 @@ def rollout(
         next_token = torch.multinomial(probs, num_samples=1) # (bsz, 1)
         next_token = next_token.reshape(-1) # (bsz)
         
+        # Make sure input token will not be replaced by the generated token because the length difference
         next_token = torch.where(
             input_text_mask[:, cur_pos], tokens[:, cur_pos], next_token
         )
