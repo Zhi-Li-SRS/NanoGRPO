@@ -26,14 +26,14 @@ class MemoryEfficientAdamW(AdamW):
         params,
         lr=1e-3,
         betas=(0.9, 0.999),
-        eps=1e-8,
+    eps=1e-8,
         weight_decay=1e-2,
         amsgrad=False,
         pin_memory=True,
         enabled=True,
     ):
         # Call parent AdamW initialization method with necessary parameters
-        super(MemoryEfficientAdamW, self).__init__(
+        super().__init__(
             params,
             lr=lr,
             betas=betas,
@@ -58,7 +58,6 @@ class MemoryEfficientAdamW(AdamW):
             loss (torch.Tensor, optional): Returns loss value if closure is provided.
         """
         if not self.enabled:
-            # When memory-efficient mode is disabled, use parent AdamW's step method
             return super(MemoryEfficientAdamW, self).step(closure)
 
         loss = None
@@ -186,7 +185,6 @@ class MemoryEfficientAdamW(AdamW):
                 max_exp_avg_sq = max_exp_avg_sqs[i].to(param_device, non_blocking=True)
                 # Maintain maximum of all second moment estimates so far
                 torch.maximum(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
-                # Use the maximum to normalize the running average of gradient
                 denom = max_exp_avg_sq.sqrt().add_(eps)
                 # Store maximum value back to CPU
                 max_exp_avg_sqs[i].copy_(max_exp_avg_sq, non_blocking=True)

@@ -1,0 +1,44 @@
+###################### Model Configuration #############################
+model:
+  pretrained_model_path: "./Qwen1.5-0.5B-Chat" 
+  device: "cuda"
+  dtype: "bfloat16"
+
+###################### Data Configuration #############################
+data:
+  path: "./"
+  test_size: 100
+
+###################### Training Configuration #############################
+training:
+  seed: 42
+
+  batch_size: 16
+
+  num_questions_per_batch: 4 # Number of unique questions to process in each batch
+ 
+  micro_batch_size: 8 # The size of micro-batches for processing policy updates to save memory
+  
+  learning_rate: 1.0e-5
+
+  weight_decay: 0.1
+
+  betas: [0.9, 0.95]
+  
+  memory_efficient_adamw: True # Whether to use the memory-efficient AdamW optimizer (stores states on CPU)
+  
+  max_grad_norm: 1.0 # Maximum gradient norm for gradient clipping
+  
+  entropy_coef: 0.0 # Coefficient for the entropy bonus in the loss function
+  
+  max_gen_len: 128 # Maximum length of the generated text during rollouts
+  
+  skip_unfinished_episodes: True # Whether to skip episodes that did not finish (i.e., did not produce an EOS token)
+ 
+  log_dir: "logs"  # Directory to save TensorBoard logs
+  
+  ckpt_dir: "checkpoints" # Directory to save model checkpoints
+  
+  eval_interval: 50 # How often (in training steps) to run evaluation on the test set
+  
+  ckpt_save_interval: 100 # How often (in training steps) to save a model checkpoint

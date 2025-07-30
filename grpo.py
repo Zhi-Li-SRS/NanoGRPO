@@ -6,7 +6,7 @@ from typing import Callable, List
 import numpy as np 
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F
 from data_types import Episode, MiniBatch
 from qwen2_llm import Qwen2Config, Transformer
 from tokenizer import Tokenizer
@@ -204,3 +204,90 @@ def update_policy(
     Returns:
         dict: the dictionary of the loss, gradient, and entropy
     """
+    # Normalize the rewards per group
+    episodes = normalize_rewards_per_group(episodes)
+    
+    episodes.sort(key=lambda x: len(x.prefix_token_ids) + len(x.generated_token_ids))
+    
+    num_micro_batches = math.ceil(len(episodes) / micro_batch_size)
+    
+    # Calculate the sum of target tokens
+    num_target_tokens = sum(len(episode.generated_token_ids) for episode in episodes)
+    
+    entropy = 0.0 
+    
+    for i in range(0, len(episodes), micro_batch_size):
+        print(
+            f"\r* Computing policy gradient: {i:>2d}/{len(episodes):>2d}",
+            flush=True,
+            end="",
+        )
+        
+        # Confirm the start and end index of the micro batch
+        j = min(i + micro_batch_size, len(episodes))
+
+        batch_episodes = episodes[i:j]
+        
+        batch_length =[
+            len(episode.prefix_token_ids) + len(episode.generated_token_ids)
+            for episode in batch_episodes
+        ]
+        
+        batch_max_length = max(batch_length)
+        
+        # Create the batch token ids with padding
+        batch_token_ids  = [
+            episode.prefix_token_ids
+            + episode.generated_token_ids
+            + [pad_token_id] * (batch_max_length - batch_length[i])
+            for i, episode in enumerate(batch_episodes)
+        ]
+        
+        # Create the batch masks to label the generated tokens
+        batch_masks = [
+            [0] * len(episode.prefix_token_ids)
+            + [1] * len(episode.generated_token_ids)
+            + [0] * (batch_max_length - batch_length[i])
+            for i, episode in enumerate(batch_episodes)
+        ]
+       
+        batch_advantages = [episode.reward for episode in batch_episodes]
+        batch_token_ids = torch.tensor(batch_token_ids, dtype=torch.long, device=device)
+        batch_masks = torch.tensor(batch_masks, dtype=torch.bool, device=device)
+        batch_advantages = torch.tensor(batch_advantages, dtype=torch.float32, device=device)
+        
+        with torch.autocast(device_type=device.type, dtype=dtype):
+            # Input the token ids and remove the last token as the target
+            input_token_ids = batch_token_ids[:, :-1]
+            target_token_ids = batch_token_ids[:, 1:]
+            
+            target_masks = batch_masks[:, 1:]
+            logits = model.forward(input_token_ids).float()
+        
+        # Calculate the log prob
+        log_probs = -F.cross_entropy(
+            logits.reshape(-1, logits.size(-1)),
+            target_token_ids.reshape(-1),
+            ignore_index=pad_token_id,
+            reduction="none",
+        ).reshape(input_token_ids.size(0), -1)
+        
+        with torch.no_grade():
+            token_entropy = compute_entropy(logits)
+            entropy += (token_entropy * target_masks).sum() / num_target_tokens
+        
+        # Calculate the objective functions: log_prob * advantages
+        obj = log_probs * batch_advantages[:None]
+        obj = (obj * target_masks).sum() / num_target_tokens
+        loss = -obj
+        loss.backward()
+    
+    grade_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+    optimizer.step()
+    optimizer.zero_grad(set_to_none=True)
+    
+    return {
+        "loss": loss.item(),
+        "grade_norm": grade_norm.item(),
+        "entropy": entropy.item(),
+    }
